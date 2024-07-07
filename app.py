@@ -5,6 +5,7 @@ from PIL import Image, ImageEnhance
 import shutil
 from flask import Flask, request, jsonify, send_from_directory, send_file, render_template
 from flask_cors import CORS
+import random
 
 app = Flask(__name__)
 CORS(app)
@@ -50,19 +51,21 @@ def mirror_image_and_labels(image_path, label_path, output_image_path, output_la
     with open(output_label_path, 'w') as f:
         f.writelines(new_lines)
 
-def add_gaussian_noise(img, mean=0, std=0.1):
-    img = np.array(img)
-    noise = np.random.normal(mean, std * 255, img.shape).astype(np.uint8)
-    noisy_img = Image.fromarray(np.clip(img + noise, 0, 255).astype(np.uint8))
-    return noisy_img
+def add_gaussian_noise(image, mean=0, std=0.1):
+    np_image = np.array(image)
+    gaussian = np.random.normal(mean, std, np_image.shape)
+    noisy_image = np.clip(np_image + gaussian * 255, 0, 255).astype(np.uint8)
+    return Image.fromarray(noisy_image)
 
-def adjust_brightness(img, factor=1.0):
-    enhancer = ImageEnhance.Brightness(img)
-    return enhancer.enhance(factor)
+def random_brightness(image, factor1=1.0, factor2=1.0):
+    enhancer = ImageEnhance.Brightness(image)
+    factor1 = random.uniform(factor1, factor2)
+    return enhancer.enhance(factor1)
 
-def adjust_saturation(img, factor=1.0):
-    enhancer = ImageEnhance.Color(img)
-    return enhancer.enhance(factor)
+def random_saturation(image, factor1=1.0, factor2=1.0):
+    enhancer = ImageEnhance.Color(image)
+    factor1 = random.uniform(factor1, factor2)
+    return enhancer.enhance(factor1)
 
 def rotate_image_and_labels(image_path, label_path, output_image_path, output_label_path, angle):
     if angle not in [90, 180, 270]:
@@ -125,9 +128,6 @@ def zip_folder(folder_path, output_path):
             for file in files:
                 if not file.startswith('temp'):
                     zipf.write(os.path.join(root, file), os.path.relpath(os.path.join(root, file), folder_path))
-
-
-
 
 @app.route('/')
 def index():
@@ -221,13 +221,15 @@ def process():
                                 print(f"Gaussian noise params: mean={mean}, std={std}")
                                 img = add_gaussian_noise(img, mean, std)
                             elif noise_type == 'Brightness':
-                                factor = float(step['params'].get('factor', 1.0))
-                                print(f"Brightness factor: {factor}")
-                                img = adjust_brightness(img, factor)
+                                factor1 = float(step['params'].get('factor1', 1.0))
+                                factor2 = float(step['params'].get('factor2', 1.0))
+                                print(f"Brightness factors: factor1={factor1}, factor2={factor2}")
+                                img = random_brightness(img, factor1, factor2)
                             elif noise_type == 'Saturation':
-                                factor = float(step['params'].get('factor', 1.0))
-                                print(f"Saturation factor: {factor}")
-                                img = adjust_saturation(img, factor)
+                                factor1 = float(step['params'].get('factor1', 1.0))
+                                factor2 = float(step['params'].get('factor2', 1.0))
+                                print(f"Saturation factors: factor1={factor1}, factor2={factor2}")
+                                img = random_saturation(img, factor1, factor2)
                             img.save(temp_img_path)
                             current_img_path = temp_img_path
 
