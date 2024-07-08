@@ -3,7 +3,7 @@ import zipfile
 import numpy as np
 from PIL import Image, ImageEnhance
 import shutil
-from flask import Flask, request, jsonify, send_from_directory, send_file, render_template
+from flask import Flask, request, jsonify, send_from_directory, send_file, render_template, make_response
 from flask_cors import CORS
 import random
 
@@ -51,18 +51,24 @@ def mirror_image_and_labels(image_path, label_path, output_image_path, output_la
     with open(output_label_path, 'w') as f:
         f.writelines(new_lines)
 
-def add_gaussian_noise(image, mean=0, std=0.1):
+def add_gaussian_noise(image, mean=0, std=0.1, seed=None):
+    if seed is not None:
+        np.random.seed(seed)
     np_image = np.array(image)
     gaussian = np.random.normal(mean, std, np_image.shape)
     noisy_image = np.clip(np_image + gaussian * 255, 0, 255).astype(np.uint8)
     return Image.fromarray(noisy_image)
 
-def random_brightness(image, factor1=1.0, factor2=1.0):
+def random_brightness(image, factor1=1.0, factor2=1.0, seed=None):
+    if seed is not None:
+        np.random.seed(seed)
     enhancer = ImageEnhance.Brightness(image)
     factor1 = random.uniform(factor1, factor2)
     return enhancer.enhance(factor1)
 
-def random_saturation(image, factor1=1.0, factor2=1.0):
+def random_saturation(image, factor1=1.0, factor2=1.0, seed=None):
+    if seed is not None:
+        np.random.seed(seed)
     enhancer = ImageEnhance.Color(image)
     factor1 = random.uniform(factor1, factor2)
     return enhancer.enhance(factor1)
@@ -131,7 +137,11 @@ def zip_folder(folder_path, output_path):
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    response = make_response(render_template('index.html'))
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '-1'
+    return response
 
 @app.route('/upload', methods=['POST'])
 def upload():
@@ -153,7 +163,11 @@ def upload():
 
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
-    return send_from_directory(UPLOAD_FOLDER, filename)
+    response = make_response(send_from_directory(UPLOAD_FOLDER, filename))
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '-1'
+    return response
 
 @app.route('/process', methods=['POST'])
 def process():
@@ -219,17 +233,17 @@ def process():
                                 mean = float(step['params'].get('mean', 0))
                                 std = float(step['params'].get('std', 0.1))
                                 print(f"Gaussian noise params: mean={mean}, std={std}")
-                                img = add_gaussian_noise(img, mean, std)
+                                img = add_gaussian_noise(img, mean, std, seed=42)
                             elif noise_type == 'Brightness':
                                 factor1 = float(step['params'].get('factor1', 1.0))
                                 factor2 = float(step['params'].get('factor2', 1.0))
                                 print(f"Brightness factors: factor1={factor1}, factor2={factor2}")
-                                img = random_brightness(img, factor1, factor2)
+                                img = random_brightness(img, factor1, factor2, seed=42)
                             elif noise_type == 'Saturation':
                                 factor1 = float(step['params'].get('factor1', 1.0))
                                 factor2 = float(step['params'].get('factor2', 1.0))
                                 print(f"Saturation factors: factor1={factor1}, factor2={factor2}")
-                                img = random_saturation(img, factor1, factor2)
+                                img = random_saturation(img, factor1, factor2, seed=42)
                             img.save(temp_img_path)
                             current_img_path = temp_img_path
 
@@ -271,7 +285,11 @@ def process():
 @app.route('/download/<filename>')
 def download_file(filename):
     full_path = os.path.join(PROCESSED_FOLDER, filename)
-    return send_file(full_path, as_attachment=True)
+    response = make_response(send_file(full_path, as_attachment=True))
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '-1'
+    return response
 
 if __name__ == '__main__':
     app.run(debug=True)
