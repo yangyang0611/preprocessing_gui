@@ -28,6 +28,14 @@ function handleFiles(files) {
     console.log('Handling files');
     if (files.length) {
         uploadFiles(files);
+        // Extract the folder name from the first file's path
+        const filePath = files[0].webkitRelativePath || files[0].name;
+        const folderName = filePath.split('/')[0];
+
+        // Log to verify what we get
+        console.log('File path:', filePath);
+        console.log('Folder name:', folderName);
+        dropZone.innerHTML = `<p>Uploaded Folder: ${folderName}</p>`;
     }
 }
 
@@ -58,7 +66,7 @@ function uploadFiles(files) {
         if (spinner) spinner.style.display = 'none';
 
         if (data.message) {
-            showUploadStatus(true, `Files uploaded successfully!`);
+            showUploadStatus(true, 'Files uploaded successfully!');
             datasetFilename = data.datasetFilename;
         }
     })
@@ -70,6 +78,7 @@ function uploadFiles(files) {
         showUploadStatus(false, 'Error uploading files');
     });
 }
+
 
 
 
