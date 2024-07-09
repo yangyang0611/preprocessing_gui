@@ -51,8 +51,10 @@ function uploadFiles(files) {
     if (spinner) {
         console.log('Showing upload spinner');
         spinner.style.display = 'block';
+        spinner.style.visibility = 'visible';
+        spinner.style.opacity = '1';
     } else {
-        console.error('Process spinner element not found');
+        console.error('Upload spinner element not found');
     }
 
     fetch('http://localhost:5000/upload', {
@@ -78,6 +80,7 @@ function uploadFiles(files) {
         showUploadStatus(false, 'Error uploading files');
     });
 }
+
 
 
 
@@ -294,6 +297,7 @@ function processImage() {
         alert('Error processing images');
     });
 }
+
 
 
 function downloadDataset() {
