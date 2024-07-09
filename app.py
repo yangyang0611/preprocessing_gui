@@ -1,3 +1,4 @@
+import cv2
 import os
 import zipfile
 import numpy as np
@@ -6,6 +7,7 @@ import shutil
 from flask import Flask, request, jsonify, send_from_directory, send_file, render_template, make_response
 from flask_cors import CORS
 import random
+import time
 
 app = Flask(__name__)
 CORS(app)
@@ -13,6 +15,7 @@ CORS(app)
 UPLOAD_FOLDER = 'uploads/'
 PROCESSED_FOLDER = 'processed/'
 PROCESSED_FILES_FOLDER = os.path.join(PROCESSED_FOLDER, 'processed_files')
+UNZIPPED_FOLDER = os.path.join(PROCESSED_FOLDER, 'unzipped')
 
 def ensure_dir_exists(path):
     if not os.path.exists(path):
@@ -21,14 +24,68 @@ def ensure_dir_exists(path):
 ensure_dir_exists(PROCESSED_FILES_FOLDER)
 ensure_dir_exists(UPLOAD_FOLDER)
 ensure_dir_exists(PROCESSED_FOLDER)
+ensure_dir_exists(UNZIPPED_FOLDER)
 
-def resize_image(img, target_size):
-    return img.resize(target_size)
+def clear_folder(folder_path):
+    for filename in os.listdir(folder_path):
+        file_path = os.path.join(folder_path, filename)
+        try:
+            if os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)
+        except Exception as e:
+            print(f'Failed to delete {file_path}. Reason: {e}')
+
+def resize_image(image_path, label_path, output_image_path, output_label_path, target_size=(960, 960)):
+    # Load image
+    image = cv2.imread(image_path)
+    original_height, original_width = image.shape[:2]
+
+    # Resize image
+    resized_image = cv2.resize(image, target_size)
+    cv2.imwrite(output_image_path, resized_image)
+
+    # Read YOLO label
+    with open(label_path, 'r') as file:
+        lines = file.readlines()
+
+    resized_labels = []
+    for line in lines:
+        parts = line.strip().split()
+        class_id = parts[0]
+        x_center, y_center, width, height = map(float, parts[1:])
+
+        # Convert YOLO format to pixel values
+        x_center_pixel = x_center * original_width
+        y_center_pixel = y_center * original_height
+        width_pixel = width * original_width
+        height_pixel = height * original_height
+
+        # Calculate new bounding box in pixel values
+        new_x_center_pixel = x_center_pixel * target_size[0] / original_width
+        new_y_center_pixel = y_center_pixel * target_size[1] / original_height
+        new_width_pixel = width_pixel * target_size[0] / original_width
+        new_height_pixel = height_pixel * target_size[1] / original_height
+
+        # Convert back to YOLO format
+        new_x_center = new_x_center_pixel / target_size[0]
+        new_y_center = new_y_center_pixel / target_size[1]
+        new_width = new_width_pixel / target_size[0]
+        new_height = new_height_pixel / target_size[1]
+
+        resized_labels.append(f"{class_id} {new_x_center} {new_y_center} {new_width} {new_height}\n")
+
+    # Write resized labels to file
+    with open(output_label_path, 'w') as file:
+        file.writelines(resized_labels)
+    print(f"Resized image saved to {output_image_path}")
 
 def mirror_image_and_labels(image_path, label_path, output_image_path, output_label_path):
     img = Image.open(image_path)
     mirrored_img = img.transpose(Image.FLIP_LEFT_RIGHT)
     mirrored_img.save(output_image_path)
+    img.close()
 
     with open(label_path, 'r') as f:
         lines = f.readlines()
@@ -80,6 +137,7 @@ def rotate_image_and_labels(image_path, label_path, output_image_path, output_la
     img = Image.open(image_path)
     rotated_img = img.rotate(angle, expand=True)
     rotated_img.save(output_image_path)
+    img.close()
     print(f"Rotated image saved to {output_image_path}")
     
     with open(label_path, 'r') as f:
@@ -111,11 +169,6 @@ def rotate_image_and_labels(image_path, label_path, output_image_path, output_la
             new_y_center = x_center
             new_width_bbox = height_bbox
             new_height_bbox = width_bbox
-        else:
-            new_x_center = x_center
-            new_y_center = y_center
-            new_width_bbox = width_bbox
-            new_height_bbox = height_bbox
 
         new_line = f"{class_id} {new_x_center} {new_y_center} {new_width_bbox} {new_height_bbox}\n"
         new_lines.append(new_line)
@@ -143,8 +196,22 @@ def index():
     response.headers['Expires'] = '-1'
     return response
 
+def clear_upload_folder():
+    for filename in os.listdir(UPLOAD_FOLDER):
+        file_path = os.path.join(UPLOAD_FOLDER, filename)
+        try:
+            if os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)
+        except Exception as e:
+            print(f'Failed to delete {file_path}. Reason: {e}')
+            
 @app.route('/upload', methods=['POST'])
 def upload():
+    # Clear the upload folder before saving new files
+    clear_upload_folder()
+
     files = request.files.getlist('files')
     for file in files:
         filename = file.filename
@@ -182,14 +249,14 @@ def process():
         return jsonify({"error": "No dataset filename provided"}), 400
 
     dataset_path = os.path.join(PROCESSED_FOLDER, dataset_filename)
-    unzip_dir = os.path.join(PROCESSED_FOLDER, 'unzipped')
+    unzip_dir = UNZIPPED_FOLDER
     
     ensure_dir_exists(unzip_dir)
     ensure_dir_exists(PROCESSED_FILES_FOLDER)
 
-    # Clear the processed_files directory
-    shutil.rmtree(PROCESSED_FILES_FOLDER)
-    ensure_dir_exists(PROCESSED_FILES_FOLDER)
+    # Clear the unzipped and processed_files directory
+    clear_folder(unzip_dir)
+    clear_folder(PROCESSED_FILES_FOLDER)
 
     unzip_file(dataset_path, unzip_dir)
     print(f"Unzipped dataset to {unzip_dir}")
@@ -245,6 +312,7 @@ def process():
                                 print(f"Saturation factors: factor1={factor1}, factor2={factor2}")
                                 img = random_saturation(img, factor1, factor2, seed=42)
                             img.save(temp_img_path)
+                            img.close()
                             current_img_path = temp_img_path
 
                         elif step['step'] == 'Resize':
@@ -252,9 +320,8 @@ def process():
                             width = int(step['params'].get('width', 960))
                             height = int(step['params'].get('height', 960))
                             print(f"Resizing image to {width}x{height}")
-                            img = resize_image(img, (width, height))
-                            img.save(temp_img_path)
-                            current_img_path = temp_img_path
+                            resize_image(current_img_path, current_label_path, temp_img_path, temp_label_path, (width, height))
+                            current_img_path, current_label_path = temp_img_path, temp_label_path
 
                 # After all processing steps, save the final result with the original filename
                 shutil.copy(current_img_path, final_img_path)
@@ -264,15 +331,24 @@ def process():
 
                 # Clean up temporary files immediately after use
                 if os.path.exists(temp_img_path):
-                    os.remove(temp_img_path)
+                    try:
+                        os.remove(temp_img_path)
+                    except PermissionError:
+                        print(f"Could not delete temporary file {temp_img_path} because it is being used by another process.")
                 if os.path.exists(temp_label_path):
-                    os.remove(temp_label_path)
+                    try:
+                        os.remove(temp_label_path)
+                    except PermissionError:
+                        print(f"Could not delete temporary file {temp_label_path} because it is being used by another process.")
 
     # Ensure no temp files are in the processed files folder
     for root, dirs, files in os.walk(PROCESSED_FILES_FOLDER):
         for file in files:
             if file.startswith('temp'):
-                os.remove(os.path.join(root, file))
+                try:
+                    os.remove(os.path.join(root, file))
+                except PermissionError:
+                    print(f"Could not delete temporary file {file} because it is being used by another process.")
 
     processed_dataset_filename = "processed_dataset.zip"
     processed_dataset_path = os.path.join(PROCESSED_FOLDER, processed_dataset_filename)
@@ -280,7 +356,6 @@ def process():
     print(f"Zipped processed dataset to {processed_dataset_path}")
 
     return jsonify({"message": "Images processed successfully", "datasetFilename": processed_dataset_filename}), 200
-
 
 @app.route('/download/<filename>')
 def download_file(filename):

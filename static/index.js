@@ -13,42 +13,65 @@ dropZone.addEventListener('dragleave', () => {
 });
 
 dropZone.addEventListener('drop', (e) => {
+    console.log('File dropped');
     e.preventDefault();
     dropZone.classList.remove('dragover');
     handleFiles(e.dataTransfer.files);
 });
 
 fileInput.addEventListener('change', (e) => {
+    console.log('File selected');
     handleFiles(e.target.files);
 });
 
 function handleFiles(files) {
+    console.log('Handling files');
     if (files.length) {
         uploadFiles(files);
     }
 }
 
 function uploadFiles(files) {
+    console.log('Starting upload');
     const formData = new FormData();
     for (let i = 0; i < files.length; i++) {
         formData.append('files', files[i]);
+    }
+
+    // Show the spinner
+    const spinner = document.getElementById('uploadSpinner');
+    if (spinner) {
+        console.log('Showing spinner');
+        spinner.style.display = 'block';
+    } else {
+        console.error('Spinner element not found');
     }
 
     fetch('http://localhost:5000/upload', {
         method: 'POST',
         body: formData
     })
-        .then(response => response.json())
-        .then(data => {
-            if (data.message) {
-                showUploadStatus(true, `Files uploaded successfully!`);
-                datasetFilename = data.datasetFilename;
-            }
-        })
-        .catch(error => {
-            showUploadStatus(false, 'Error uploading files');
-        });
+    .then(response => response.json())
+    .then(data => {
+        // Hide the spinner
+        console.log('Upload complete, hiding spinner');
+        if (spinner) spinner.style.display = 'none';
+
+        if (data.message) {
+            showUploadStatus(true, `Files uploaded successfully!`);
+            datasetFilename = data.datasetFilename;
+        }
+    })
+    .catch(error => {
+        // Hide the spinner
+        console.log('Upload failed, hiding spinner');
+        if (spinner) spinner.style.display = 'none';
+
+        showUploadStatus(false, 'Error uploading files');
+    });
 }
+
+
 
 function showUploadStatus(success, message) {
     const statusDiv = document.getElementById('uploadStatus');
@@ -108,6 +131,9 @@ function addStep() {
     document.getElementById('noiseInputs').style.display = 'none';
 }
 
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('uploadSpinner').style.display = 'none';
+});
 
 // Add event listeners to enable/disable input fields
 document.getElementById('resize').addEventListener('change', function() {
@@ -228,6 +254,23 @@ function processImage() {
     const progressContainer = document.querySelector('.progress');
     progressContainer.style.display = 'block';
     progressBar.style.width = '0%';
+    progressBar.textContent = '0%';
+
+    let progress = 0;
+    const interval = setInterval(() => {
+        console.log('Interval running, progress:', progress);
+        progress = Math.min(progress + 1, 99);
+        progressBar.style.width = `${progress}%`;
+        progressBar.offsetHeight; // Force a reflow
+        progressBar.textContent = `${progress}%`;
+
+        console.log('Set width to:', progressBar.style.width);
+        
+        // Add this line to ensure the animation classes are applied
+        progressBar.classList.add('progress-bar-striped', 'progress-bar-animated');
+        
+        
+    }, 100); // Update progress every 100ms
 
     fetch('http://localhost:5000/process', {
         method: 'POST',
@@ -238,6 +281,8 @@ function processImage() {
     })
         .then(response => response.json())
         .then(data => {
+            console.log('Processing complete');
+            clearInterval(interval);
             progressBar.style.width = '100%';
             progressBar.textContent = 'Processing Complete';
             document.getElementById('downloadDataset').disabled = false;
@@ -246,7 +291,10 @@ function processImage() {
             datasetFilename = 'processed_dataset.zip'; 
         })
         .catch(error => {
+            console.log('Error processing images');
+            clearInterval(interval);
             progressBar.style.width = '0%';
+            progressBar.textContent = '0%';
             alert('Error processing images');
         });
 }
