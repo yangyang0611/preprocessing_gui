@@ -49,10 +49,10 @@ function uploadFiles(files) {
     // Show the spinner
     const spinner = document.getElementById('uploadSpinner');
     if (spinner) {
-        console.log('Showing spinner');
+        console.log('Showing upload spinner');
         spinner.style.display = 'block';
     } else {
-        console.error('Spinner element not found');
+        console.error('Process spinner element not found');
     }
 
     fetch('http://localhost:5000/upload', {
@@ -62,7 +62,7 @@ function uploadFiles(files) {
     .then(response => response.json())
     .then(data => {
         // Hide the spinner
-        console.log('Upload complete, hiding spinner');
+        console.log('Upload complete, hiding upload spinner');
         if (spinner) spinner.style.display = 'none';
 
         if (data.message) {
@@ -142,6 +142,7 @@ function addStep() {
 
 document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('uploadSpinner').style.display = 'none';
+    document.getElementById('processSpinner').style.display = 'none';
 });
 
 // Add event listeners to enable/disable input fields
@@ -259,27 +260,14 @@ function processImage() {
     }
 
     const options = { sequence: steps };
-    const progressBar = document.querySelector('.progress-bar');
-    const progressContainer = document.querySelector('.progress');
-    progressContainer.style.display = 'block';
-    progressBar.style.width = '0%';
-    progressBar.textContent = '0%';
-
-    let progress = 0;
-    const interval = setInterval(() => {
-        console.log('Interval running, progress:', progress);
-        progress = Math.min(progress + 1, 99);
-        progressBar.style.width = `${progress}%`;
-        progressBar.offsetHeight; // Force a reflow
-        progressBar.textContent = `${progress}%`;
-
-        console.log('Set width to:', progressBar.style.width);
-        
-        // Add this line to ensure the animation classes are applied
-        progressBar.classList.add('progress-bar-striped', 'progress-bar-animated');
-        
-        
-    }, 100); // Update progress every 100ms
+    const spinner = document.getElementById('processSpinner');
+    
+    if (spinner) {
+        console.log('Showing process spinner');
+        spinner.style.display = 'block'; // Show the spinner
+    } else {
+        console.error('Process spinner element not found');
+    }
 
     fetch('http://localhost:5000/process', {
         method: 'POST',
@@ -288,25 +276,25 @@ function processImage() {
         },
         body: JSON.stringify({ datasetFilename, options })
     })
-        .then(response => response.json())
-        .then(data => {
-            console.log('Processing complete');
-            clearInterval(interval);
-            progressBar.style.width = '100%';
-            progressBar.textContent = 'Processing Complete';
-            document.getElementById('downloadDataset').disabled = false;
-            alert(data.message);
-            // Update the datasetFilename with the processed dataset
-            datasetFilename = 'processed_dataset.zip'; 
-        })
-        .catch(error => {
-            console.log('Error processing images');
-            clearInterval(interval);
-            progressBar.style.width = '0%';
-            progressBar.textContent = '0%';
-            alert('Error processing images');
-        });
+    .then(response => response.json())
+    .then(data => {
+        console.log('Processing complete, hiding process spinner');
+        if (spinner) {
+            spinner.style.display = 'none'; // Hide the spinner
+        }
+        alert(data.message);
+        document.getElementById('downloadDataset').disabled = false;
+        datasetFilename = 'processed_dataset.zip'; 
+    })
+    .catch(error => {
+        console.log('Error processing images');
+        if (spinner) {
+            spinner.style.display = 'none'; // Hide the spinner
+        }
+        alert('Error processing images');
+    });
 }
+
 
 function downloadDataset() {
     if (datasetFilename) {
