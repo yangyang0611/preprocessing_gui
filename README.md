@@ -2,7 +2,7 @@
 This gui is a no-code preprocessing tools, where user can upload the files and the tool will do the preprocessing automatically
 
 ## Upload Folder
-Upload a folder include img and label, the label need to follow YOLO label format. There will be a spinner appear when uploading. After successful upload, a pop message will shown up.
+Upload a folder include img and label, the label need to follow YOLO label format. There will be a spinner appear when uploading. After successful upload, a pop message will shown up. Also, a `uploaded_dataset` is created at backend.
 
 ## Function
 1. Resize
@@ -24,13 +24,13 @@ Upload a folder include img and label, the label need to follow YOLO label forma
     The range is recommend range for each noise. When exceeding the value of range, a warning pop message will shown up and input content is clear.
 
 ## Add Step Button
-After select the functions, press the `Add Step` button. The functions selected will be shown on the  `Processing Step` area. 
+After select the functions, press the `Add Step` button. The functions selected will be shown on the  `Processing Step` area. Also, a 
 
 ## Processing Steps
 You can use drag and drop to adjust the sequence of function steps.
 
 ## Proceed Button
-Clicked to start the preprocessing, a spinner will shown up indicate the progress is running. 
+Clicked to start the preprocessing, a spinner will shown up indicate the progress is running. Because there are more then one function need to be done, so after one function is finished and move to next function, the data will be save as `temp_process` folder at backend. And after the process all done, the dataset will be save as `processed_files`at backend.
 
 ## Download Dataset
-This button is hide from click, only when the preprocessing finished, the button can be click and the dataset is downloaded in zip format. 
+This button is hide from click, only when the preprocessing finished, the button can be click. and `processed_dataset` is downloaded in zip format. 
